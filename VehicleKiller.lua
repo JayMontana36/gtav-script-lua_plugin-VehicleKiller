@@ -30,6 +30,7 @@ local IsControlPressed if RunWhileHeld then IsControlPressed = PAD.IS_CONTROL_PR
 local NetworkIsPlayerActive			= NETWORK.NETWORK_IS_PLAYER_ACTIVE
 local GetVehiclePedIsUsing			= PED.GET_VEHICLE_PED_IS_USING
 local GetPlayerPed					= PLAYER.GET_PLAYER_PED
+local GetPedNearbyVehicles			= PED.GET_PED_NEARBY_VEHICLES
 local GetEntityModel				= ENTITY.GET_ENTITY_MODEL
 local NetworkHasControlOfEntity		= NETWORK.NETWORK_HAS_CONTROL_OF_ENTITY
 local NetworkRequestControlOfEntity	= NETWORK.NETWORK_REQUEST_CONTROL_OF_ENTITY
@@ -39,7 +40,7 @@ local SetVehicleEngineHealth		= VEHICLE.SET_VEHICLE_ENGINE_HEALTH
 
 
 
-local _VehicleBlacklist, Vehicle = {}, nil
+local _VehicleBlacklist, ActivePlayers, CheckedVehicles, Vehicle = {}, {}, nil, nil
 
 local VehicleKiller =
 {
@@ -51,9 +52,40 @@ local VehicleKiller =
 				end,
 	tick	=	function()
 					if AlwaysActive or IsControlPressed(0, TriggerKey) then
-						--if CheckNearby then
+						if CheckNearby then
+							CheckedVehicles = {}
 							
-						--else
+							for i=0,31 do
+								ActivePlayers[i] = NetworkIsPlayerActive(i)
+								if ActivePlayers[i] then
+									ActivePlayers[i] = GetPlayerPed(i)
+								end
+							end
+							
+							for i=0,31 do
+								if ActivePlayers[i] then
+									NearbyVehs, NearbyVehsNum = GetPedNearbyVehicles(ActivePlayers[i], MaxNearbyVehs)
+									for j=1,NearbyVehsNum do
+										Vehicle = NearbyVehs[j]
+										if not CheckedVehicles[Vehicle] then
+											if _VehicleBlacklist[GetEntityModel(Vehicle)] then
+												if NetworkHasControlOfEntity(NearbyVehs[j]) or NetworkRequestControlOfEntity(NearbyVehs[j]) then
+													if DeleteVehicle then
+														SetEntityAsMissionEntity(Vehicle, true, true)
+														DeleteEntity(Vehicle)
+													else
+														SetVehicleEngineHealth(Vehicle, -4000.0)
+													end
+													CheckedVehicles[Vehicle] = true
+												end
+											else
+												CheckedVehicles[Vehicle] = true
+											end
+										end
+									end
+								end
+							end
+						else
 							for i=0,31 do
 								if NetworkIsPlayerActive(i) then
 									Vehicle = GetVehiclePedIsUsing(GetPlayerPed(i))
@@ -69,7 +101,7 @@ local VehicleKiller =
 									end
 								end
 							end
-						--end
+						end
 					end
 				end
 }
